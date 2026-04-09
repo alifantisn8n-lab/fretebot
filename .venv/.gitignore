@@ -1,0 +1,8 @@
+.venv/
+.env
+downloads/
+__pycache__/
+*.pyc
+*.png
+*.xls
+*.xlsx
