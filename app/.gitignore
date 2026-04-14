@@ -1,0 +1,17 @@
+# ambiente
+.venv/
+env/
+__pycache__/
+*.pyc
+
+# arquivos sensíveis
+.env
+
+# downloads
+downloads/
+
+# imagens
+*.png
+
+# lixo geral
+*.log
