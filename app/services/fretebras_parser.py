@@ -48,15 +48,15 @@ class FretebrasParser:
             except Exception:
                 html = conteudo.decode("utf-8", errors="ignore")
 
-tabelas = pd.read_html(html, flavor="lxml")
+            tabelas = pd.read_html(html, flavor="lxml")
 
-if not tabelas:
-    raise ValueError("Nenhuma tabela encontrada no arquivo")
+            if not tabelas:
+                raise ValueError("Nenhuma tabela encontrada no arquivo")
 
-print(f"✅ {len(tabelas)} tabela(s) encontrada(s)")
-print(f"🔎 Colunas detectadas: {tabelas[0].columns.tolist()}")
+            print(f"✅ {len(tabelas)} tabela(s) encontrada(s)")
+            print(f"🔎 Colunas detectadas: {tabelas[0].columns.tolist()}")
 
-return tabelas[0]
+            return tabelas[0]
 
         except Exception as e:
             raise ValueError(f"Erro ao ler arquivo do Fretebras como HTML: {e}")
@@ -66,7 +66,7 @@ return tabelas[0]
 
         linha_cabecalho = self._encontrar_linha_cabecalho(df_bruto)
         cabecalho = df_bruto.iloc[linha_cabecalho].tolist()
-        df = df_bruto.iloc[linha_cabecalho + 1 :].copy()
+        df = df_bruto.iloc[linha_cabecalho + 1:].copy()
         df.columns = cabecalho
 
         df = df.rename(columns={
