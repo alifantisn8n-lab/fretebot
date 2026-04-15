@@ -40,7 +40,8 @@ class FretebrasParser:
         print("🌐 Tentando ler arquivo do Fretebras como HTML...")
 
         try:
-tabelas = pd.read_html(self.caminho_arquivo)
+            tabelas = pd.read_html(self.caminho_arquivo)
+
             if not tabelas:
                 raise ValueError("Nenhuma tabela encontrada no arquivo")
 
@@ -55,7 +56,7 @@ tabelas = pd.read_html(self.caminho_arquivo)
 
         linha_cabecalho = self._encontrar_linha_cabecalho(df_bruto)
         cabecalho = df_bruto.iloc[linha_cabecalho].tolist()
-        df = df_bruto.iloc[linha_cabecalho + 1 :].copy()
+        df = df_bruto.iloc[linha_cabecalho + 1:].copy()
         df.columns = cabecalho
 
         df = df.rename(columns={
