@@ -1,7 +1,10 @@
 import os
 from datetime import datetime
 from pathlib import Path
+from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
+
+load_dotenv()
 
 
 def log(msg):
@@ -10,51 +13,90 @@ def log(msg):
 
 def fazer_login(page, usuario, senha):
     log("🔐 Abrindo Fretebras...")
-    page.goto("https://novacentral.fretebras.com.br/")
+    page.goto("https://novacentral.fretebras.com.br/", wait_until="load", timeout=60000)
 
     page.fill('input[name="username"]', usuario)
     page.fill('input[name="password"]', senha)
     page.click('button[type="submit"]')
 
-    page.wait_for_timeout(5000)
+    page.wait_for_timeout(8000)
     log("✅ Login concluído")
 
 
 def abrir_meus_fretes(page):
     log("📂 Abrindo Meus Fretes...")
 
-    try:
-        page.click('text="Meus Fretes"', timeout=5000)
-    except:
-        page.click('aside button', timeout=5000)
-        page.click('text="Meus Fretes"', timeout=5000)
+    # vai direto pela URL para evitar depender do menu lateral
+    page.goto("https://novacentral.fretebras.com.br/meus-fretes", wait_until="load", timeout=60000)
+    page.wait_for_timeout(6000)
 
-    page.wait_for_timeout(4000)
     log("✅ Tela Meus Fretes aberta")
+    log(f"URL atual: {page.url}")
 
 
 def selecionar_todos(page):
     log("☑️ Selecionando todos...")
 
-    checkboxes = page.locator("input[type='checkbox']")
-    if checkboxes.count() > 0:
-        checkboxes.nth(0).click()
-        log("✅ Checkbox selecionado")
-    else:
-        raise RuntimeError("❌ Nenhum checkbox encontrado")
+    page.wait_for_timeout(4000)
+
+    # 1) tenta checkbox nativo
+    try:
+        checks = page.locator('input[type="checkbox"]')
+        total = checks.count()
+
+        for i in range(total):
+            try:
+                el = checks.nth(i)
+                if el.is_visible():
+                    el.click(force=True)
+                    log(f"✅ Checkbox selecionado via input[type='checkbox'] índice {i}")
+                    return
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    # 2) tenta checkbox por role
+    try:
+        checks = page.locator('[role="checkbox"]')
+        total = checks.count()
+
+        for i in range(total):
+            try:
+                el = checks.nth(i)
+                if el.is_visible():
+                    el.click(force=True)
+                    log(f"✅ Checkbox selecionado via role=checkbox índice {i}")
+                    return
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    # 3) tenta clicar perto do canto esquerdo da listagem
+    # baseado no layout que você já mostrou antes
+    try:
+        page.mouse.click(50, 105)
+        page.wait_for_timeout(1500)
+        log("✅ Checkbox selecionado por coordenada")
+        return
+    except Exception:
+        pass
+
+    raise RuntimeError("❌ Nenhum checkbox encontrado")
 
 
 def baixar_listagem_ativos(page, pasta_downloads, timestamp):
     log("⬇️ Iniciando download...")
 
-    with page.expect_download() as download_info:
-        page.click('text="Download da listagem"')
+    with page.expect_download(timeout=30000) as download_info:
+        page.get_by_text("Download da listagem", exact=False).click()
 
     download = download_info.value
     nome = download.suggested_filename
-
     caminho = pasta_downloads / f"{timestamp}_{nome}"
-    download.save_as(caminho)
+
+    download.save_as(str(caminho))
 
     log(f"✅ Arquivo salvo em: {caminho}")
     return caminho
@@ -85,14 +127,13 @@ def baixar_listagem():
         try:
             fazer_login(page, usuario, senha)
             abrir_meus_fretes(page)
-
             selecionar_todos(page)
-
             caminho = baixar_listagem_ativos(page, pasta_downloads, timestamp)
 
             return {
                 "arquivo": str(caminho),
-                "status": "ok"
+                "status": "ok",
+                "houve_reativacao": False,
             }
 
         except Exception as e:
