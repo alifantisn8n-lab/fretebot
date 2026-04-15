@@ -1,7 +1,6 @@
 import pandas as pd
 from pathlib import Path
 import zipfile
-from app.converter_excel import converter_xls_para_xlsx
 
 
 class FretebrasParser:
@@ -54,10 +53,7 @@ class FretebrasParser:
 
         if self._arquivo_e_xls_real():
             print("📙 Arquivo detectado como XLS legado real")
-            print("🔄 Convertendo automaticamente para XLSX via Excel...")
-            caminho_convertido = converter_xls_para_xlsx(str(self.caminho_arquivo))
-            print(f"✅ Arquivo convertido: {caminho_convertido}")
-            return pd.read_excel(caminho_convertido, header=None, engine="openpyxl")
+            return pd.read_excel(self.caminho_arquivo, header=None, engine="xlrd")
 
         raise ValueError(
             f"Não foi possível identificar o formato real do arquivo: {self.caminho_arquivo.name}"
