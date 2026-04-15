@@ -37,37 +37,34 @@ class FretebrasParser:
         raise ValueError("Não encontrei a linha de cabeçalho da planilha.")
 
     def ler_arquivo(self):
-    print("🌐 Tentando ler arquivo do Fretebras como HTML...")
+        print("🌐 Tentando ler arquivo do Fretebras como HTML...")
 
-    try:
-        # lê o arquivo bruto como bytes
-        with open(self.caminho_arquivo, "rb") as f:
-            conteudo = f.read()
-
-        # tenta decodificar corretamente (Fretebras geralmente latin1)
         try:
-            html = conteudo.decode("latin1")
-        except:
-            html = conteudo.decode("utf-8", errors="ignore")
+            with open(self.caminho_arquivo, "rb") as f:
+                conteudo = f.read()
 
-        # passa o HTML já tratado pro pandas
-        tabelas = pd.read_html(html)
+            try:
+                html = conteudo.decode("latin1")
+            except Exception:
+                html = conteudo.decode("utf-8", errors="ignore")
 
-        if not tabelas:
-            raise ValueError("Nenhuma tabela encontrada no arquivo")
+            tabelas = pd.read_html(html)
 
-        print(f"✅ {len(tabelas)} tabela(s) encontrada(s)")
-        return tabelas[0]
+            if not tabelas:
+                raise ValueError("Nenhuma tabela encontrada no arquivo")
 
-    except Exception as e:
-        raise ValueError(f"Erro ao ler arquivo do Fretebras como HTML: {e}")
-    
+            print(f"✅ {len(tabelas)} tabela(s) encontrada(s)")
+            return tabelas[0]
+
+        except Exception as e:
+            raise ValueError(f"Erro ao ler arquivo do Fretebras como HTML: {e}")
+
     def processar(self):
         df_bruto = self.ler_arquivo()
 
         linha_cabecalho = self._encontrar_linha_cabecalho(df_bruto)
         cabecalho = df_bruto.iloc[linha_cabecalho].tolist()
-        df = df_bruto.iloc[linha_cabecalho + 1:].copy()
+        df = df_bruto.iloc[linha_cabecalho + 1 :].copy()
         df.columns = cabecalho
 
         df = df.rename(columns={
