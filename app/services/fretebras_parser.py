@@ -1,6 +1,5 @@
 import pandas as pd
 from pathlib import Path
-import zipfile
 
 
 class FretebrasParser:
@@ -37,27 +36,20 @@ class FretebrasParser:
                 return i
         raise ValueError("Não encontrei a linha de cabeçalho da planilha.")
 
-    def _arquivo_e_xlsx_real(self) -> bool:
-        return zipfile.is_zipfile(self.caminho_arquivo)
-
-    def _arquivo_e_xls_real(self) -> bool:
-        assinatura_ole = bytes.fromhex("D0CF11E0A1B11AE1")
-        with open(self.caminho_arquivo, "rb") as f:
-            cabecalho = f.read(8)
-        return cabecalho == assinatura_ole
-
     def ler_arquivo(self):
-        if self._arquivo_e_xlsx_real():
-            print("📘 Arquivo detectado como XLSX real")
-            return pd.read_excel(self.caminho_arquivo, header=None, engine="openpyxl")
+        print("🌐 Tentando ler arquivo do Fretebras como HTML...")
 
-        if self._arquivo_e_xls_real():
-            print("📙 Arquivo detectado como XLS legado real")
-            return pd.read_excel(self.caminho_arquivo, header=None, engine="xlrd")
+        try:
+            tabelas = pd.read_html(self.caminho_arquivo, encoding="latin1")
 
-        raise ValueError(
-            f"Não foi possível identificar o formato real do arquivo: {self.caminho_arquivo.name}"
-        )
+            if not tabelas:
+                raise ValueError("Nenhuma tabela encontrada no arquivo")
+
+            print(f"✅ {len(tabelas)} tabela(s) encontrada(s)")
+            return tabelas[0]
+
+        except Exception as e:
+            raise ValueError(f"Erro ao ler arquivo do Fretebras como HTML: {e}")
 
     def processar(self):
         df_bruto = self.ler_arquivo()
