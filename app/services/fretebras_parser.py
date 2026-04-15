@@ -1,5 +1,6 @@
 import pandas as pd
 from pathlib import Path
+from io import StringIO
 
 
 class FretebrasParser:
@@ -39,27 +40,38 @@ class FretebrasParser:
     def ler_arquivo(self):
         print("🌐 Tentando ler arquivo do Fretebras como HTML...")
 
-        try:
-            with open(self.caminho_arquivo, "rb") as f:
-                conteudo = f.read()
+        with open(self.caminho_arquivo, "rb") as f:
+            conteudo = f.read()
 
+        # tentativa 1: html
+        try:
             try:
                 html = conteudo.decode("latin1")
             except Exception:
                 html = conteudo.decode("utf-8", errors="ignore")
 
-            tabelas = pd.read_html(html, flavor="lxml")
+            tabelas = pd.read_html(StringIO(html), flavor="lxml")
 
-            if not tabelas:
-                raise ValueError("Nenhuma tabela encontrada no arquivo")
-
-            print(f"✅ {len(tabelas)} tabela(s) encontrada(s)")
-            print(f"🔎 Colunas detectadas: {tabelas[0].columns.tolist()}")
-
-            return tabelas[0]
-
+            if tabelas:
+                print(f"✅ {len(tabelas)} tabela(s) encontrada(s) via HTML")
+                print(f"🔎 Colunas detectadas: {tabelas[0].columns.tolist()}")
+                return tabelas[0]
         except Exception as e:
-            raise ValueError(f"Erro ao ler arquivo do Fretebras como HTML: {e}")
+            print(f"⚠️ Falhou como HTML: {e}")
+
+        # tentativa 2: xls legado corrompido
+        print("📙 Tentando ler como XLS legado via xlrd...")
+        try:
+            df_xls = pd.read_excel(
+                self.caminho_arquivo,
+                header=None,
+                engine="xlrd",
+                engine_kwargs={"ignore_workbook_corruption": True},
+            )
+            print("✅ Arquivo lido via XLS legado")
+            return df_xls
+        except Exception as e:
+            raise ValueError(f"Erro ao ler arquivo do Fretebras (HTML e XLS): {e}")
 
     def processar(self):
         df_bruto = self.ler_arquivo()
