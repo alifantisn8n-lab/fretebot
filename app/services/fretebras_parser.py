@@ -43,7 +43,6 @@ class FretebrasParser:
         with open(self.caminho_arquivo, "rb") as f:
             conteudo = f.read()
 
-        # tentativa 1: html
         try:
             try:
                 html = conteudo.decode("latin1")
@@ -59,7 +58,6 @@ class FretebrasParser:
         except Exception as e:
             print(f"⚠️ Falhou como HTML: {e}")
 
-        # tentativa 2: xls legado corrompido
         print("📙 Tentando ler como XLS legado via xlrd...")
         try:
             df_xls = pd.read_excel(
