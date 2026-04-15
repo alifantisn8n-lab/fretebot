@@ -40,8 +40,7 @@ class FretebrasParser:
         print("🌐 Tentando ler arquivo do Fretebras como HTML...")
 
         try:
-            tabelas = pd.read_html(self.caminho_arquivo, encoding="latin1")
-
+tabelas = pd.read_html(self.caminho_arquivo)
             if not tabelas:
                 raise ValueError("Nenhuma tabela encontrada no arquivo")
 
