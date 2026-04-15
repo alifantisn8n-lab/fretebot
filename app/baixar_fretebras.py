@@ -489,8 +489,11 @@ def baixar_listagem():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False, slow_mo=350)
-        context = browser.new_context(accept_downloads=True)
+browser = p.chromium.launch(
+    headless=True,
+    args=["--no-sandbox", "--disable-dev-shm-usage"]
+)
+context = browser.new_context(accept_downloads=True)
         page = context.new_page()
 
         try:
