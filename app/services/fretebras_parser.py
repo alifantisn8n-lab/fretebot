@@ -48,13 +48,15 @@ class FretebrasParser:
             except Exception:
                 html = conteudo.decode("utf-8", errors="ignore")
 
-            tabelas = pd.read_html(html)
+tabelas = pd.read_html(html, flavor="lxml")
 
-            if not tabelas:
-                raise ValueError("Nenhuma tabela encontrada no arquivo")
+if not tabelas:
+    raise ValueError("Nenhuma tabela encontrada no arquivo")
 
-            print(f"✅ {len(tabelas)} tabela(s) encontrada(s)")
-            return tabelas[0]
+print(f"✅ {len(tabelas)} tabela(s) encontrada(s)")
+print(f"🔎 Colunas detectadas: {tabelas[0].columns.tolist()}")
+
+return tabelas[0]
 
         except Exception as e:
             raise ValueError(f"Erro ao ler arquivo do Fretebras como HTML: {e}")
