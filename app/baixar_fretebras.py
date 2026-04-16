@@ -84,44 +84,40 @@ def selecionar_primeiro_desativado_automatico_com_hover(page, base_dir: Path) ->
     for i in range(total):
         try:
             alvo = textos.nth(i)
+            alvo.scroll_into_view_if_needed(timeout=3000)
+            page.wait_for_timeout(800)
 
-            # sobe para um bloco maior da linha/card
-            container = alvo.locator("xpath=ancestor::div[1]")
+            box = alvo.bounding_box()
+            if not box:
+                continue
+
+            # hover no texto/linha para revelar o checkbox
             try:
-                container.hover(force=True)
-            except Exception:
                 alvo.hover(force=True)
+            except Exception:
+                pass
 
-            page.wait_for_timeout(1500)
+            page.wait_for_timeout(1200)
             screenshot_seguro(page, base_dir / f"diag_hover_desativado_{i}.png")
 
-            # tenta achar checkbox após hover
-            checks = page.locator('input[type="checkbox"]')
-            total_checks = checks.count()
+            # tenta clicar no checkbox da MESMA LINHA
+            x_texto = box["x"]
+            y_texto = box["y"] + (box["height"] / 2)
 
-            for j in range(total_checks):
+            # checkbox costuma ficar bem à esquerda do texto da linha
+            for deslocamento in [220, 200, 180, 160]:
                 try:
-                    chk = checks.nth(j)
-                    if chk.is_visible():
-                        chk.click(force=True)
-                        log(f"✅ Checkbox do desativado automático clicado após hover (texto {i}, checkbox {j})")
-                        screenshot_seguro(page, base_dir / "diag_checkbox_desativado_marcado.png")
-                        return 1
-                except Exception:
-                    continue
+                    x_checkbox = max(10, x_texto - deslocamento)
+                    y_checkbox = y_texto
 
-            # fallback role checkbox
-            checks_role = page.locator('[role="checkbox"]')
-            total_role = checks_role.count()
+                    page.mouse.move(x_checkbox, y_checkbox)
+                    page.wait_for_timeout(300)
+                    page.mouse.click(x_checkbox, y_checkbox)
+                    page.wait_for_timeout(1200)
 
-            for j in range(total_role):
-                try:
-                    chk = checks_role.nth(j)
-                    if chk.is_visible():
-                        chk.click(force=True)
-                        log(f"✅ Role checkbox do desativado clicado após hover (texto {i}, checkbox {j})")
-                        screenshot_seguro(page, base_dir / "diag_role_checkbox_desativado_marcado.png")
-                        return 1
+                    screenshot_seguro(page, base_dir / f"diag_checkbox_desativado_click_{i}_{deslocamento}.png")
+                    log(f"✅ Tentativa de clique no checkbox da linha do automático (texto {i}, deslocamento {deslocamento})")
+                    return 1
                 except Exception:
                     continue
 
@@ -261,17 +257,35 @@ def selecionar_todos(page, base_dir: Path):
 def baixar_listagem_ativos(page, pasta_downloads: Path, timestamp: str, base_dir: Path) -> Path:
     log("⬇️ Iniciando download da listagem...")
 
-    with page.expect_download(timeout=30000) as download_info:
-        page.get_by_text("Download da listagem", exact=False).click()
+    seletores = [
+        'button:has-text("Download da listagem")',
+        'a:has-text("Download da listagem")',
+        'text="Download da listagem"',
+    ]
 
-    download = download_info.value
-    nome = download.suggested_filename
-    caminho = pasta_downloads / f"{timestamp}_{nome}"
-    download.save_as(str(caminho))
+    ultimo_erro = None
 
-    log(f"✅ Arquivo salvo em: {caminho}")
-    screenshot_seguro(page, base_dir / "diag_download_concluido.png")
-    return caminho
+    for seletor in seletores:
+        try:
+            with page.expect_download(timeout=60000) as download_info:
+                page.locator(seletor).first.click(force=True)
+                log(f"✅ Clique em download com seletor: {seletor}")
+
+            download = download_info.value
+            nome = download.suggested_filename
+            caminho = pasta_downloads / f"{timestamp}_{nome}"
+            download.save_as(str(caminho))
+
+            log(f"✅ Arquivo salvo em: {caminho}")
+            screenshot_seguro(page, base_dir / "diag_download_concluido.png")
+            return caminho
+
+        except Exception as e:
+            ultimo_erro = e
+            continue
+
+    screenshot_seguro(page, base_dir / "erro_download_botao.png")
+    raise RuntimeError(f"Não foi possível baixar a listagem. Último erro: {ultimo_erro}")
 
 
 def baixar_listagem():
@@ -304,12 +318,14 @@ def baixar_listagem():
             qtd_selecionados = selecionar_primeiro_desativado_automatico_com_hover(page, base_dir)
             log(f"ℹ️ Desativados automáticos selecionados: {qtd_selecionados}")
 
-            if qtd_selecionados > 0:
-                clicar_ativar_topo(page, base_dir)
-                tratar_popup_ativar(page, base_dir)
-                marcar_motivo_motorista_desistiu(page, base_dir)
-                clicar_confirmar(page, base_dir)
-                log("✅ Reativação concluída")
+           if qtd_selecionados > 0:
+    clicar_ativar_topo(page, base_dir)
+    tratar_popup_ativar(page, base_dir)
+    marcar_motivo_motorista_desistiu(page, base_dir)
+    clicar_confirmar(page, base_dir)
+    log("✅ Reativação concluída")
+else:
+    log("ℹ️ Nenhum desativado automático foi selecionado, então não haverá reativação.")
 
             voltar_para_ativos(page, base_dir)
             selecionar_todos(page, base_dir)
