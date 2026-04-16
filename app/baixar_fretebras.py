@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
-from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
+from playwright.sync_api import sync_playwright
 
 load_dotenv()
 
@@ -15,289 +15,120 @@ def log(msg: str):
 def screenshot_seguro(page, caminho: Path):
     try:
         page.screenshot(path=str(caminho), full_page=True)
-        log(f"📸 Screenshot salva em {caminho}")
-    except Exception as e:
-        log(f"⚠️ Não foi possível salvar screenshot: {e}")
-
-
-def fazer_login(page, usuario: str, senha: str, base_dir: Path):
-    log("🔐 Abrindo Fretebras...")
-    page.goto("https://novacentral.fretebras.com.br", wait_until="load", timeout=60000)
-
-    try:
-        page.wait_for_load_state("networkidle", timeout=15000)
-    except PlaywrightTimeoutError:
+    except:
         pass
+
+
+def fazer_login(page, usuario, senha):
+    log("🔐 Fazendo login...")
+    page.goto("https://novacentral.fretebras.com.br", timeout=60000)
 
     page.fill('input[name="username"]', usuario)
     page.fill('input[name="password"]', senha)
     page.click('button[type="submit"]')
 
     page.wait_for_timeout(8000)
-    screenshot_seguro(page, base_dir / "diag_pos_login.png")
     log("✅ Login concluído")
-    log(f"URL atual: {page.url}")
 
 
-def abrir_meus_fretes(page, base_dir: Path):
+def abrir_meus_fretes(page):
     log("📂 Abrindo Meus Fretes...")
-    page.goto("https://novacentral.fretebras.com.br/meus-fretes", wait_until="load", timeout=60000)
-    page.wait_for_timeout(6000)
-    screenshot_seguro(page, base_dir / "diag_meus_fretes.png")
-    log("✅ Tela Meus Fretes aberta")
-    log(f"URL atual: {page.url}")
+    page.goto("https://novacentral.fretebras.com.br/meus-fretes", timeout=60000)
+    page.wait_for_timeout(5000)
 
 
-def abrir_aba_desativados(page, base_dir: Path):
-    log("♻️ Indo para aba Desativados...")
-    page.wait_for_timeout(3000)
-
-    for i, tentativa in enumerate([
-        lambda: page.get_by_text("Desativados", exact=False).first.click(force=True),
-        lambda: page.locator("text=Desativados").first.click(force=True),
-    ], start=1):
-        try:
-            tentativa()
-            page.wait_for_timeout(5000)
-            screenshot_seguro(page, base_dir / "diag_desativados_aberta.png")
-            log(f"✅ Clique em Desativados na tentativa {i}")
-            log("✅ Aba Desativados aberta")
-            return
-        except Exception:
-            continue
-
-    raise RuntimeError("Não foi possível abrir a aba Desativados.")
+def abrir_aba_desativados(page):
+    log("♻️ Indo para Desativados...")
+    page.get_by_text("Desativados", exact=False).first.click()
+    page.wait_for_timeout(4000)
 
 
-def selecionar_primeiro_desativado_automatico_com_hover(page, base_dir: Path) -> int:
-    log("🎯 Procurando 1 frete desativado automaticamente para hover + seleção...")
-    page.wait_for_timeout(3000)
+def selecionar_primeiro_desativado_automatico_com_hover(page):
+    log("🎯 Buscando desativado automático...")
 
     textos = page.locator("text=/Frete desativado automaticamente/i")
     total = textos.count()
-    log(f"📦 Total de fretes desativados automaticamente encontrados: {total}")
+
+    log(f"Encontrados: {total}")
 
     if total == 0:
-        screenshot_seguro(page, base_dir / "diag_sem_desativado_auto.png")
         return 0
 
-    for i in range(total):
-        try:
-            alvo = textos.nth(i)
-            alvo.scroll_into_view_if_needed(timeout=3000)
-            page.wait_for_timeout(800)
+    alvo = textos.first
+    alvo.scroll_into_view_if_needed()
 
-            box = alvo.bounding_box()
-            if not box:
-                continue
+    box = alvo.bounding_box()
+    if not box:
+        return 0
 
-            # hover no texto/linha para revelar o checkbox
-            try:
-                alvo.hover(force=True)
-            except Exception:
-                pass
+    x = box["x"] - 200
+    y = box["y"] + (box["height"] / 2)
 
-            page.wait_for_timeout(1200)
-            screenshot_seguro(page, base_dir / f"diag_hover_desativado_{i}.png")
+    page.mouse.move(x, y)
+    page.wait_for_timeout(500)
+    page.mouse.click(x, y)
 
-            # tenta clicar no checkbox da MESMA LINHA
-            x_texto = box["x"]
-            y_texto = box["y"] + (box["height"] / 2)
-
-            # checkbox costuma ficar bem à esquerda do texto da linha
-            for deslocamento in [220, 200, 180, 160]:
-                try:
-                    x_checkbox = max(10, x_texto - deslocamento)
-                    y_checkbox = y_texto
-
-                    page.mouse.move(x_checkbox, y_checkbox)
-                    page.wait_for_timeout(300)
-                    page.mouse.click(x_checkbox, y_checkbox)
-                    page.wait_for_timeout(1200)
-
-                    screenshot_seguro(page, base_dir / f"diag_checkbox_desativado_click_{i}_{deslocamento}.png")
-                    log(f"✅ Tentativa de clique no checkbox da linha do automático (texto {i}, deslocamento {deslocamento})")
-                    return 1
-                except Exception:
-                    continue
-
-        except Exception:
-            continue
-
-    screenshot_seguro(page, base_dir / "diag_hover_sem_checkbox.png")
-    return 0
+    log("✅ Clique no checkbox do automático")
+    return 1
 
 
-def clicar_ativar_topo(page, base_dir: Path):
-    log("🟢 Tentando clicar em Ativar...")
-
-    for i, tentativa in enumerate([
-        lambda: page.get_by_text("Ativar", exact=False).first.click(force=True),
-        lambda: page.locator("button").filter(has_text="Ativar").first.click(force=True),
-        lambda: page.locator("text=Ativar").first.click(force=True),
-    ], start=1):
-        try:
-            tentativa()
-            page.wait_for_timeout(2500)
-            screenshot_seguro(page, base_dir / "diag_botao_ativar_topo.png")
-            log(f"✅ Clique em Ativar na tentativa {i}")
-            return
-        except Exception:
-            continue
-
-    raise RuntimeError("Não foi possível clicar em Ativar.")
-
-
-def tratar_popup_ativar(page, base_dir: Path):
-    log("🔵 Tratando popup 'Ativar fretes?'...")
-    page.wait_for_timeout(2500)
-    screenshot_seguro(page, base_dir / "diag_popup_ativar.png")
-
-    for i, tentativa in enumerate([
-        lambda: page.locator("div[role='dialog'] button").filter(has_text="Ativar").last.click(force=True),
-        lambda: page.get_by_text("Ativar", exact=False).last.click(force=True),
-    ], start=1):
-        try:
-            tentativa()
-            page.wait_for_timeout(3000)
-            screenshot_seguro(page, base_dir / "diag_popup_ativar_confirmado.png")
-            log(f"✅ Clique no Ativar do popup na tentativa {i}")
-            return
-        except Exception:
-            continue
-
-    raise RuntimeError("Não foi possível clicar no Ativar do popup.")
-
-
-def marcar_motivo_motorista_desistiu(page, base_dir: Path):
-    log("📝 Marcando motivo 'Motorista desistiu da negociação'...")
-    page.wait_for_timeout(2500)
-    screenshot_seguro(page, base_dir / "diag_tela_motivo.png")
-
-    for i, tentativa in enumerate([
-        lambda: page.get_by_text("Motorista desistiu da negociação", exact=False).first.click(force=True),
-        lambda: page.locator("text=Motorista desistiu da negociação").first.click(force=True),
-    ], start=1):
-        try:
-            tentativa()
-            page.wait_for_timeout(1500)
-            screenshot_seguro(page, base_dir / "diag_motivo_marcado.png")
-            log(f"✅ Motivo marcado na tentativa {i}")
-            return
-        except Exception:
-            continue
-
-    raise RuntimeError("Não foi possível marcar o motivo.")
-
-
-def clicar_confirmar(page, base_dir: Path):
-    log("✅ Clicando em Confirmar...")
-    page.wait_for_timeout(1200)
-
-    for i, tentativa in enumerate([
-        lambda: page.get_by_text("Confirmar", exact=False).first.click(force=True),
-        lambda: page.locator("button").filter(has_text="Confirmar").first.click(force=True),
-        lambda: page.locator("text=Confirmar").first.click(force=True),
-    ], start=1):
-        try:
-            tentativa()
-            page.wait_for_timeout(4000)
-            screenshot_seguro(page, base_dir / "diag_confirmado.png")
-            log(f"✅ Clique em Confirmar na tentativa {i}")
-            return
-        except Exception:
-            continue
-
-    raise RuntimeError("Não foi possível clicar em Confirmar.")
-
-
-def voltar_para_ativos(page, base_dir: Path):
-    log("↩️ Voltando para Ativos...")
-
-    for i, tentativa in enumerate([
-        lambda: page.get_by_text("Ativos", exact=False).first.click(force=True),
-        lambda: page.locator("text=Ativos").first.click(force=True),
-    ], start=1):
-        try:
-            tentativa()
-            page.wait_for_timeout(4000)
-            screenshot_seguro(page, base_dir / "diag_ativos_retorno.png")
-            log(f"✅ Clique em Ativos na tentativa {i}")
-            return
-        except Exception:
-            continue
-
-    page.goto("https://novacentral.fretebras.com.br/meus-fretes", wait_until="load", timeout=60000)
-    page.wait_for_timeout(5000)
-    screenshot_seguro(page, base_dir / "diag_ativos_retorno_url.png")
-    log("✅ Retorno para Meus Fretes por URL direta")
-
-
-def selecionar_todos(page, base_dir: Path):
-    log("☑️ Selecionando todos os ativos...")
+def clicar_ativar(page):
+    log("🟢 Clicando em Ativar...")
+    page.get_by_text("Ativar", exact=False).first.click()
     page.wait_for_timeout(3000)
 
-    checks = page.locator('input[type="checkbox"]')
-    total = checks.count()
 
-    for i in range(total):
-        try:
-            el = checks.nth(i)
-            if el.is_visible():
-                el.click(force=True)
-                log(f"✅ Checkbox selecionado via input[type='checkbox'] índice {i}")
-                screenshot_seguro(page, base_dir / "diag_checkbox_ativo_ok.png")
-                return
-        except Exception:
-            continue
-
-    raise RuntimeError("❌ Nenhum checkbox encontrado")
+def tratar_popup(page):
+    log("🔵 Confirmando popup...")
+    page.get_by_text("Ativar", exact=False).last.click()
+    page.wait_for_timeout(3000)
 
 
-def baixar_listagem_ativos(page, pasta_downloads: Path, timestamp: str, base_dir: Path) -> Path:
-    log("⬇️ Iniciando download da listagem...")
-
-    seletores = [
-        'button:has-text("Download da listagem")',
-        'a:has-text("Download da listagem")',
-        'text="Download da listagem"',
-    ]
-
-    ultimo_erro = None
-
-    for seletor in seletores:
-        try:
-            with page.expect_download(timeout=60000) as download_info:
-                page.locator(seletor).first.click(force=True)
-                log(f"✅ Clique em download com seletor: {seletor}")
-
-            download = download_info.value
-            nome = download.suggested_filename
-            caminho = pasta_downloads / f"{timestamp}_{nome}"
-            download.save_as(str(caminho))
-
-            log(f"✅ Arquivo salvo em: {caminho}")
-            screenshot_seguro(page, base_dir / "diag_download_concluido.png")
-            return caminho
-
-        except Exception as e:
-            ultimo_erro = e
-            continue
-
-    screenshot_seguro(page, base_dir / "erro_download_botao.png")
-    raise RuntimeError(f"Não foi possível baixar a listagem. Último erro: {ultimo_erro}")
+def marcar_motivo(page):
+    log("📝 Marcando motivo...")
+    page.get_by_text("Motorista desistiu da negociação", exact=False).click()
+    page.wait_for_timeout(1000)
 
 
-def baixar_listagem():
-    usuario = os.getenv("FRETEBRAS_USER", "").strip()
-    senha = os.getenv("FRETEBRAS_PASS", "").strip()
+def clicar_confirmar(page):
+    log("✅ Confirmando...")
+    page.get_by_text("Confirmar", exact=False).click()
+    page.wait_for_timeout(3000)
 
-    if not usuario or not senha:
-        raise ValueError("Defina FRETEBRAS_USER e FRETEBRAS_PASS")
+
+def voltar_para_ativos(page):
+    log("↩️ Voltando para ativos...")
+    page.get_by_text("Ativos", exact=False).first.click()
+    page.wait_for_timeout(4000)
+
+
+def selecionar_todos(page):
+    log("☑️ Selecionando todos...")
+    page.locator('input[type="checkbox"]').first.click()
+    page.wait_for_timeout(1000)
+
+
+def baixar_listagem(page, pasta, timestamp):
+    log("⬇️ Baixando...")
+
+    with page.expect_download(timeout=60000) as download_info:
+        page.get_by_text("Download da listagem").click()
+
+    download = download_info.value
+    caminho = pasta / f"{timestamp}_{download.suggested_filename}"
+    download.save_as(str(caminho))
+
+    log(f"✅ Arquivo salvo em: {caminho}")
+    return caminho
+
+
+def baixar_listagem_main():
+    usuario = os.getenv("FRETEBRAS_USER")
+    senha = os.getenv("FRETEBRAS_PASS")
 
     base_dir = Path(__file__).resolve().parent.parent
-    pasta_downloads = base_dir / "downloads"
-    pasta_downloads.mkdir(exist_ok=True)
+    pasta = base_dir / "downloads"
+    pasta.mkdir(exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -311,36 +142,34 @@ def baixar_listagem():
         page = context.new_page()
 
         try:
-            fazer_login(page, usuario, senha, base_dir)
-            abrir_meus_fretes(page, base_dir)
+            fazer_login(page, usuario, senha)
+            abrir_meus_fretes(page)
 
-            abrir_aba_desativados(page, base_dir)
-            qtd_selecionados = selecionar_primeiro_desativado_automatico_com_hover(page, base_dir)
-            log(f"ℹ️ Desativados automáticos selecionados: {qtd_selecionados}")
+            abrir_aba_desativados(page)
 
-           if qtd_selecionados > 0:
-    clicar_ativar_topo(page, base_dir)
-    tratar_popup_ativar(page, base_dir)
-    marcar_motivo_motorista_desistiu(page, base_dir)
-    clicar_confirmar(page, base_dir)
-    log("✅ Reativação concluída")
-else:
-    log("ℹ️ Nenhum desativado automático foi selecionado, então não haverá reativação.")
+            qtd = selecionar_primeiro_desativado_automatico_com_hover(page)
 
-            voltar_para_ativos(page, base_dir)
-            selecionar_todos(page, base_dir)
-            caminho = baixar_listagem_ativos(page, pasta_downloads, timestamp, base_dir)
+            if qtd > 0:
+                clicar_ativar(page)
+                tratar_popup(page)
+                marcar_motivo(page)
+                clicar_confirmar(page)
+                log("✅ Reativação concluída")
+            else:
+                log("ℹ️ Nenhum automático encontrado")
+
+            voltar_para_ativos(page)
+            selecionar_todos(page)
+
+            caminho = baixar_listagem(page, pasta, timestamp)
 
             return {
                 "arquivo": str(caminho),
-                "status": "ok",
-                "houve_reativacao": qtd_selecionados > 0,
-                "desativados_automaticos_encontrados": qtd_selecionados,
+                "reativado": qtd > 0
             }
 
         except Exception as e:
-            screenshot_seguro(page, base_dir / "erro_fluxo_fretebras.png")
-            log(f"❌ Erro: {e}")
+            log(f"❌ ERRO: {e}")
             raise
 
         finally:
