@@ -15,7 +15,7 @@ def log(msg: str):
 def screenshot_seguro(page, caminho: Path):
     try:
         page.screenshot(path=str(caminho), full_page=True)
-    except:
+    except Exception:
         pass
 
 
@@ -108,7 +108,7 @@ def selecionar_todos(page):
     page.wait_for_timeout(1000)
 
 
-def baixar_listagem(page, pasta, timestamp):
+def baixar_arquivo(page, pasta, timestamp):
     log("⬇️ Baixando...")
 
     with page.expect_download(timeout=60000) as download_info:
@@ -125,6 +125,9 @@ def baixar_listagem(page, pasta, timestamp):
 def baixar_listagem():
     usuario = os.getenv("FRETEBRAS_USER")
     senha = os.getenv("FRETEBRAS_PASS")
+
+    if not usuario or not senha:
+        raise ValueError("Defina FRETEBRAS_USER e FRETEBRAS_PASS")
 
     base_dir = Path(__file__).resolve().parent.parent
     pasta = base_dir / "downloads"
@@ -144,7 +147,6 @@ def baixar_listagem():
         try:
             fazer_login(page, usuario, senha)
             abrir_meus_fretes(page)
-
             abrir_aba_desativados(page)
 
             qtd = selecionar_primeiro_desativado_automatico_com_hover(page)
@@ -161,7 +163,7 @@ def baixar_listagem():
             voltar_para_ativos(page)
             selecionar_todos(page)
 
-            caminho = baixar_listagem(page, pasta, timestamp)
+            caminho = baixar_arquivo(page, pasta, timestamp)
 
             return {
                 "arquivo": str(caminho),
