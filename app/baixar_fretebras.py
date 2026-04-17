@@ -122,7 +122,7 @@ def baixar_listagem(page, pasta, timestamp):
     return caminho
 
 
-def baixar_listagem_main():
+def baixar_listagem():
     usuario = os.getenv("FRETEBRAS_USER")
     senha = os.getenv("FRETEBRAS_PASS")
 
