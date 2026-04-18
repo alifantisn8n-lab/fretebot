@@ -8,15 +8,8 @@ from playwright.sync_api import sync_playwright
 load_dotenv()
 
 
-def log(msg: str):
+def log(msg):
     print(msg, flush=True)
-
-
-def screenshot_seguro(page, caminho: Path):
-    try:
-        page.screenshot(path=str(caminho), full_page=True)
-    except Exception:
-        pass
 
 
 def fazer_login(page, usuario, senha):
@@ -43,7 +36,7 @@ def abrir_aba_desativados(page):
     page.wait_for_timeout(4000)
 
 
-def selecionar_primeiro_desativado_automatico_com_hover(page):
+def selecionar_primeiro_desativado_automatico(page):
     log("🎯 Buscando desativado automático...")
 
     textos = page.locator("text=/Frete desativado automaticamente/i")
@@ -68,7 +61,7 @@ def selecionar_primeiro_desativado_automatico_com_hover(page):
     page.wait_for_timeout(500)
     page.mouse.click(x, y)
 
-    log("✅ Clique no checkbox do automático")
+    log("✅ Checkbox do automático clicado")
     return 1
 
 
@@ -111,15 +104,33 @@ def selecionar_todos(page):
 def baixar_arquivo(page, pasta, timestamp):
     log("⬇️ Baixando...")
 
-    with page.expect_download(timeout=60000) as download_info:
-        page.get_by_text("Download da listagem").click()
+    seletores = [
+        'button:has-text("Download da listagem")',
+        'a:has-text("Download da listagem")',
+        'text="Download da listagem"',
+    ]
 
-    download = download_info.value
-    caminho = pasta / f"{timestamp}_{download.suggested_filename}"
-    download.save_as(str(caminho))
+    for seletor in seletores:
+        try:
+            log(f"🔎 Tentando: {seletor}")
 
-    log(f"✅ Arquivo salvo em: {caminho}")
-    return caminho
+            with page.expect_download(timeout=90000) as download_info:
+                page.locator(seletor).first.click(force=True)
+
+            download = download_info.value
+            nome = download.suggested_filename
+
+            caminho = pasta / f"{timestamp}_{nome}"
+            download.save_as(str(caminho))
+
+            log(f"✅ Arquivo salvo em: {caminho}")
+            return caminho
+
+        except Exception as e:
+            log(f"⚠️ Falhou: {e}")
+            continue
+
+    raise RuntimeError("❌ Não conseguiu baixar arquivo")
 
 
 def baixar_listagem():
@@ -147,9 +158,9 @@ def baixar_listagem():
         try:
             fazer_login(page, usuario, senha)
             abrir_meus_fretes(page)
-            abrir_aba_desativados(page)
 
-            qtd = selecionar_primeiro_desativado_automatico_com_hover(page)
+            abrir_aba_desativados(page)
+            qtd = selecionar_primeiro_desativado_automatico(page)
 
             if qtd > 0:
                 clicar_ativar(page)
